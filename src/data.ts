@@ -1,5 +1,5 @@
 import {
-  collection, doc, onSnapshot, runTransaction, serverTimestamp,
+  collection, doc, increment, onSnapshot, runTransaction, serverTimestamp,
   setDoc, updateDoc, deleteDoc, type Unsubscribe,
 } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
@@ -76,7 +76,7 @@ export async function toggleVote(s: Services, user: User | null, id: string) {
     if (!house.exists()) throw new Error('This stop has been removed.');
     const count = house.data().upvotes;
     if (!Number.isInteger(count) || count < 0) throw new Error('This stop has an invalid confirmation count.');
-    tx.update(ref, { upvotes: count + (vote.exists() ? -1 : 1) });
+    tx.update(ref, { upvotes: increment(vote.exists() ? -1 : 1) });
     if (vote.exists()) tx.delete(voteRef);
     else tx.set(voteRef, { createdAt: serverTimestamp() });
   });

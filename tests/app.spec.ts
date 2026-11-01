@@ -132,6 +132,10 @@ test('map modes, manual placement, safe geocoding, GPS denial and no mobile over
   await page.getByRole('button', { name: 'Dismiss notification' }).click();
   await registerAndOpenForm(page);
   await page.getByLabel('Street Address or Cross-Streets').fill('Manual pin test');
+  await page.getByLabel('Latitude', { exact: true }).fill('');
+  await page.getByRole('button', { name: 'View / Adjust Pin on Map' }).click();
+  await expect(page.getByRole('alert')).toContainText('valid Springfield coordinates');
+  await page.getByLabel('Latitude', { exact: true }).fill('44.0485');
   await page.getByRole('button', { name: 'Post Our House Live' }).click();
   await expect(page.getByRole('alert')).toContainText('confirm the pin');
   await page.getByRole('button', { name: 'View / Adjust Pin on Map' }).click();

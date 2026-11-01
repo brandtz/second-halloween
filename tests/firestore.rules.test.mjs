@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
 import {
-  collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch,
+  collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, writeBatch, increment,
   runTransaction, serverTimestamp, Timestamp,
 } from 'firebase/firestore';
 
@@ -71,9 +71,9 @@ test('initial counts and server timestamps are mandatory', async () => {
 });
 async function vote(db, uid) {
   await runTransaction(db, async tx => {
-    const house = await tx.get(doc(db, housePath));
+    await tx.get(doc(db, housePath));
     const ballot = await tx.get(doc(db, votePath(uid)));
-    tx.update(doc(db, housePath), { upvotes: house.data().upvotes + (ballot.exists() ? -1 : 1) });
+    tx.update(doc(db, housePath), { upvotes: increment(ballot.exists() ? -1 : 1) });
     if (ballot.exists()) tx.delete(doc(db, votePath(uid)));
     else tx.set(doc(db, votePath(uid)), { createdAt: serverTimestamp() });
   });
@@ -90,7 +90,8 @@ test('votes and undo are atomic and one per UID', async () => {
   assert.equal((await getDoc(doc(db, housePath))).data().upvotes, 0);
 });
 test('simultaneous confirmations do not lose increments', async () => {
-  await Promise.all(['one', 'two', 'three'].map(uid => vote(guest(uid), uid)));
+  const results = await Promise.allSettled(['one', 'two', 'three'].map(uid => vote(guest(uid), uid)));
+  for (const result of results) assert.equal(result.status, 'fulfilled', result.status === 'rejected' ? String(result.reason) : '');
   assert.equal((await getDoc(doc(host('owner'), housePath))).data().upvotes, 3);
 });
 test('cannot forge counts, orphan ballots, or vote as another user', async () => {

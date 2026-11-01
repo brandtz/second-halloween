@@ -69,7 +69,10 @@ hours, status, tags, owner UID, confirmation count, and timestamps.
 
 ## Deploy on Netlify
 
-1. Import `brandtz/second-halloween` into Netlify, using the `main` branch.
+1. Import `brandtz/second-halloween` into Netlify. The initial app is on
+   `copilot/setup-second-halloween` because repository rules prevented creating
+   `main` in the empty repository. Select that branch for now, or have a repository
+   administrator establish `main` and use the normal protected-branch process.
 2. Netlify reads `netlify.toml`: **build `npm run build`, publish `dist`, Node 24**.
 3. Add these environment variables to the production build context:
 

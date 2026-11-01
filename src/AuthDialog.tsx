@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { EmailAuthProvider, linkWithCredential, sendPasswordResetEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import type { Services } from './firebase';
-import { errorMessage } from './firebase';
+import { errorMessage, finishGuestSignIn } from './firebase';
 import Modal from './Modal';
 
 export default function AuthDialog({ services, onClose, onSuccess }: {
@@ -18,6 +18,7 @@ export default function AuthDialog({ services, onClose, onSuccess }: {
     setBusy(true); setError(''); setMessage('');
     try {
       const { auth } = services;
+      await finishGuestSignIn();
       if (mode === 'reset') {
         await sendPasswordResetEmail(auth, email.trim());
         setMessage('If this email has an account, a password reset email will arrive shortly.');
