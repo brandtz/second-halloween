@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function host() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider == 'password';
+    }
+    function validHouse(d) {
+      return d.keys().hasAll(['address', 'neighborhood', 'hours', 'status', 'tags', 'pinIcon',
+        'note', 'lat', 'lng', 'ownerUid', 'upvotes', 'createdAt', 'updatedAt'])
+        && d.keys().hasOnly(['address', 'neighborhood', 'hours', 'status', 'tags', 'pinIcon',
+        'note', 'lat', 'lng', 'ownerUid', 'upvotes', 'createdAt', 'updatedAt'])
+        && d.address is string && d.address.size() > 0 && d.address.size() <= 180
+        && d.hours is string && d.hours.size() > 0 && d.hours.size() <= 80
+        && d.note is string && d.note.size() <= 1000
+        && d.neighborhood in ['Washburne', 'Thurston', 'Hayden Bridge', 'Centennial',
+          'Kelly Butte', 'Gateway', 'Mohawk', 'Downtown', 'Jasper']
+        && d.status in ['plenty', 'low', 'out']
+        && d.tags is list && d.tags.size() <= 5 && d.tags.toSet().size() == d.tags.size()
+        && d.tags.hasOnly(['full_size', 'teal_pumpkin', 'spooky_decor', 'warm_drinks', 'pet_friendly'])
+        && d.pinIcon in ['🎃', '👻', '🍬', '🩵', '🕷️', '🧙‍♀️']
+        && d.lat is number && d.lat >= 43.98 && d.lat <= 44.14
+        && d.lng is number && d.lng >= -123.12 && d.lng <= -122.80
+        && d.ownerUid is string
+        && d.upvotes is int && d.upvotes >= 0
+        && d.createdAt is timestamp && d.updatedAt is timestamp;
+    }
+    match /events/{eventId}/houses/{houseId} {
+      function votePath() {
+        return /databases/$(database)/documents/events/$(eventId)/voters/$(request.auth.uid)/votes/$(houseId);
+      }
+      function validVoteChange() {
+        return signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes'])
+          && ((!exists(votePath()) && existsAfter(votePath())
+              && request.resource.data.upvotes == resource.data.upvotes + 1)
+            || (exists(votePath()) && !existsAfter(votePath())
+              && request.resource.data.upvotes == resource.data.upvotes - 1));
+      }
+      allow read: if true;
+      allow create: if host() && validHouse(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.upvotes == 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+      allow update: if validHouse(request.resource.data)
+        && ((host() && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.upvotes == resource.data.upvotes
+          && request.resource.data.updatedAt == request.time)
+        || validVoteChange());
+      allow delete: if host() && resource.data.ownerUid == request.auth.uid;
+    }
+    match /events/{eventId}/voters/{uid}/votes/{houseId} {
+      function housePath() {
+        return /databases/$(database)/documents/events/$(eventId)/houses/$(houseId);
+      }
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time
+        && getAfter(housePath()).data.upvotes == get(housePath()).data.upvotes + 1;
+      allow delete: if signedIn() && request.auth.uid == uid
+        && getAfter(housePath()).data.upvotes == get(housePath()).data.upvotes - 1;
+      allow update: if false;
+    }
+    match /events/{eventId}/preferences/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['savedIds'])
+        && request.resource.data.savedIds is list
+        && request.resource.data.savedIds.size() <= 500;
+    }
+  }
+}
