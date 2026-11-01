@@ -40,6 +40,9 @@ export function getServices(): Services {
 }
 
 let anonymousSignIn: Promise<unknown> | undefined;
+export async function finishGuestSignIn() {
+  await anonymousSignIn;
+}
 export function watchUser(auth: Auth, next: (user: User | null) => void, fail: (error: unknown) => void) {
   return onAuthStateChanged(auth, user => {
     next(user);

@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react';
 import { Check, MapPin, Trash2 } from 'lucide-react';
-import { ICONS, NEIGHBORHOODS, STATUSES, TAGS, validateHouse, type HouseInput, type Status, type Neighborhood } from './model';
+import { ICONS, NEIGHBORHOODS, STATUSES, TAGS, insideSpringfield, validateHouse, type HouseInput, type Status, type Neighborhood } from './model';
 import { geocodeAddress } from './geocode';
 import { errorMessage } from './firebase';
 import Modal from './Modal';
@@ -59,15 +59,18 @@ export default function HouseForm({ draft, onChange, onClose, onPick, onSave, on
           placeholder="e.g. 642 C St" onChange={e => update({ address: e.target.value }, true)} /></label>
         <div className="row wrap">
           <button type="button" onClick={locate}><MapPin size={15} />{locating ? 'Locating…' : 'Locate on Map'}</button>
-          <button type="button" onClick={onPick}>View / Adjust Pin on Map</button>
+          <button type="button" onClick={() => {
+            if (!insideSpringfield(input)) { setError('Enter valid Springfield coordinates before viewing the pin.'); return; }
+            onPick();
+          }}>View / Adjust Pin on Map</button>
         </div>
         <div className="location-box">
           <strong>{draft.confirmed ? '✓ Pin confirmed' : 'Pin needs confirmation'}</strong>
           <p>{locationMessage || 'Locate your address, then view the map to check the pin. No random or guessed location will be published.'}</p>
           <div className="two-columns">
-            <label>Latitude<input required type="number" step="any" min="43.98" max="44.14" value={input.lat}
+            <label>Latitude<input required type="number" step="any" min="43.98" max="44.14" value={Number.isFinite(input.lat) ? input.lat : ''}
               onChange={e => update({ lat: e.target.valueAsNumber }, true)} /></label>
-            <label>Longitude<input required type="number" step="any" min="-123.12" max="-122.80" value={input.lng}
+            <label>Longitude<input required type="number" step="any" min="-123.12" max="-122.80" value={Number.isFinite(input.lng) ? input.lng : ''}
               onChange={e => update({ lng: e.target.valueAsNumber }, true)} /></label>
           </div>
         </div>

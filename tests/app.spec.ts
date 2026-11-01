@@ -132,6 +132,10 @@ test('map modes, manual placement, safe geocoding, GPS denial and no mobile over
   await page.getByRole('button', { name: 'Dismiss notification' }).click();
   await registerAndOpenForm(page);
   await page.getByLabel('Street Address or Cross-Streets').fill('Manual pin test');
+  await page.getByLabel('Latitude', { exact: true }).fill('');
+  await page.getByRole('button', { name: 'View / Adjust Pin on Map' }).click();
+  await expect(page.getByRole('alert')).toContainText('valid Springfield coordinates');
+  await page.getByLabel('Latitude', { exact: true }).fill('44.0485');
   await page.getByRole('button', { name: 'Post Our House Live' }).click();
   await expect(page.getByRole('alert')).toContainText('confirm the pin');
   await page.getByRole('button', { name: 'View / Adjust Pin on Map' }).click();
@@ -139,18 +143,26 @@ test('map modes, manual placement, safe geocoding, GPS denial and no mobile over
   const grid = page.getByLabel('Approximate Springfield grid');
   const bounds = await grid.boundingBox();
   if (!bounds) throw new Error('Grid is missing');
-  const svgPoint = await grid.evaluate((element, dimensions) => {
-    const matrix = (element as SVGSVGElement).getScreenCTM();
-    if (!matrix) throw new Error('Missing grid transform');
-    const p = new DOMPoint(dimensions.x + dimensions.width * .55, dimensions.y + dimensions.height * .68).matrixTransform(matrix.inverse());
-    return { x: p.x, y: p.y };
-  }, bounds);
+  const deltaPromise = grid.evaluate(element => new Promise<{ x: number; y: number }>(resolve => {
+    // Measure the actual pointer event relative to the rendered pin: Leaflet may
+    // round its viewport center, and browsers round synthetic pointer positions.
+    element.addEventListener('pointerup', event => {
+      const pointer = event as PointerEvent;
+      const matrix = (element as SVGSVGElement).getScreenCTM();
+      const pin = element.querySelector('circle')?.parentNode;
+      const pinTransform = pin instanceof SVGGElement ? pin.transform.baseVal.consolidate()?.matrix : null;
+      if (!matrix || !pinTransform) throw new Error('Missing grid or pin transform');
+      const p = new DOMPoint(pointer.clientX, pointer.clientY).matrixTransform(matrix.inverse());
+      resolve({ x: p.x - pinTransform.e, y: p.y - pinTransform.f });
+    }, { once: true, capture: true });
+  }));
   await grid.click({ position: { x: bounds.width * .55, y: bounds.height * .68 } });
+  const delta = await deltaPromise;
   await page.getByRole('button', { name: 'Confirm pin location' }).click();
   const lat = Number(await page.getByLabel('Latitude', { exact: true }).inputValue());
   const lng = Number(await page.getByLabel('Longitude', { exact: true }).inputValue());
-  expect(lat).toBeCloseTo(44.0485 - (svgPoint.y - 350) / 152000, 5);
-  expect(lng).toBeCloseTo(-123.0215 + (svgPoint.x - 500) / (152000 * .72), 5);
+  expect(lat).toBeCloseTo(44.0485 - delta.y / 152000, 5);
+  expect(lng).toBeCloseTo(-123.0215 + delta.x / (152000 * .72), 5);
   await page.getByRole('button', { name: 'Post Our House Live' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
